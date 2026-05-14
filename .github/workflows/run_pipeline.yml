@@ -23,18 +23,15 @@ jobs:
 
     - name: Instalar Dependencias
       run: |
-        python -bin/pip install --upgrade pip
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Pipeline - Entrenar Modelo
-      run: python src/train.py
-
-    - name: Pipeline - Generar Predicciones
-      run: python src/predict.py
+    - name: Ejecutar Pipeline de Machine Learning
+      run: python run_pipeline.py
 
     - name: Guardar Cambios Automáticos en GitHub
       run: |
         git config --local user.email "github-actions[bot]@github.com"
         git config --local user.name "github-actions[bot]"
-        git add models/ data/ reporte_predicciones.txt
+        git add models/ data/
         git diff --quiet && git diff --staged --quiet || (git commit -m "Automated MLOps run: Model update and predictions" && git push)
