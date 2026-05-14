@@ -1,41 +1,27 @@
 import pandas as pd
 import joblib
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
 from config import Config
 
-def run_training() -> None:
-    print("[TRAIN] Entrenando Clasificador Multietiqueta con datos de ESPN...")
-    df = pd.read_csv(Config.PROCESSED_DATA_PATH)
-    scaler = joblib.load(Config.SCALER_PATH)
-    
-    X = df[Config.FEATURES]
-    y = df[Config.TARGETS]
-    
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=Config.TEST_SIZE, random_state=Config.RANDOM_STATE
-    )
-    
-    X_train_scaled = scaler.transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    
-    model = RandomForestClassifier(
-        n_estimators=Config.N_ESTIMATORS,
-        max_depth=Config.MAX_DEPTH,
-        random_state=Config.RANDOM_STATE
-    )
-    model.fit(X_train_scaled, y_train)
-    
-    # Evaluación
-    preds = model.predict(X_test_scaled)
-    print("\n--- METRICAS DE CONFIANZA DEL MODELO ---")
-    for i, target_name in enumerate(Config.TARGETS):
-        acc = accuracy_score(y_test.iloc[:, i], preds[:, i])
-        print(f"Precisión (Accuracy) en {target_name}: {acc * 100:.2f}%")
-        
-    joblib.dump(model, Config.MODEL_PATH)
-    print(f"\n[TRAIN] Binario exportado exitosamente en: {Config.MODEL_PATH}")
+class FootballPredictor:
+    def __init__(self):
+        self.model = joblib.load(Config.MODEL_PATH)
+        self.scaler = joblib.load(Config.SCALER_PATH)
+        self.mapeo_ganador = {0: "Empate (X)", 1: "Local (1)", 2: "Visitante (2)"}
 
-if __name__ == "__main__":
-    run_training()
+    def predict_match(self, input_data: dict) -> dict:
+        df_match = pd.DataFrame([input_data])
+        scaled_data = self.scaler.transform(df_match[Config.FEATURES])
+        
+        preds = self.model.predict(scaled_data)[0]
+        probs = self.model.predict_proba(scaled_data)
+        
+        # El formato multi-output de scikit-learn genera una lista de arrays para probabilidades
+        prob_ganador = probs[0][0][preds[0]] * 100
+        prob_ambos = probs[1][0][preds[1]] * 100
+        prob_mas = probs[2][0][preds[2]] * 100
+
+        return {
+            "ganador": {"resultado": self.mapeo_ganador[preds[0]], "probabilidad": round(prob_ganador, 2)},
+            "ambos_anotan": {"resultado": "Sí" if preds[1] == 1 else "No", "probabilidad": round(prob_ambos, 2)},
+            "mas_2_5_goles": {"resultado": "Más de 2.5" if preds[2] == 1 else "Menos de 2.5", "probabilidad": round(prob_mas, 2)}
+        }
